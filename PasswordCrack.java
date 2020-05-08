@@ -9,43 +9,33 @@ import java.util.stream.IntStream;
 public class PasswordCrack {
     static ArrayList<PasswordEntry> notCracked;
     public static void main(String[] args) {
-        ArrayList<String> mostCommonPasswords = loadDictionary("most_common_pass.txt");
+        ArrayList<String> mostCommonPasswords = new ArrayList<>();
+        try{
+            mostCommonPasswords = loadDictionary("most_common_pass.txt");
+        } catch (IllegalArgumentException ignored) {}
         ArrayList<String> dictionary = loadDictionary(args[0]);
         notCracked = PasswordEntry.loadFromFile(args[1]);
 
-        checkNames();
-        checkNamesX2();
+        checkNames(false);
+        checkNames(true);
 
         checkDictionaryWithoutMangle(mostCommonPasswords);
-
         checkDictionaryWithoutMangle(dictionary);
-        checkDictionary(dictionary);
-        checkDictionaryX2(dictionary);
 
-        checkDictionary(mostCommonPasswords);
-        checkDictionaryX2(mostCommonPasswords);
+        checkDictionary(dictionary, false);
+        checkDictionary(dictionary, true);
+
+        checkDictionary(mostCommonPasswords, false);
+        checkDictionary(mostCommonPasswords, true);
     }
 
-    private static void checkNames() {
+    private static void checkNames(boolean doubleMangle) {
         ArrayList<PasswordEntry> cracked = new ArrayList<>();
         for(PasswordEntry entry : notCracked){
             ArrayList<String> passwordsToTry = new ArrayList<>();
             passwordsToTry.addAll(mangle(entry.fName));
             passwordsToTry.addAll(mangle(entry.lName));
-            if(tryPasswords(entry.hashed, entry.salt, passwordsToTry)){
-                cracked.add(entry);
-            }
-        }
-        notCracked.removeAll(cracked);
-    }
-
-    private static void checkNamesX2() {
-        ArrayList<PasswordEntry> cracked = new ArrayList<>();
-        for(PasswordEntry entry : notCracked){
-            ArrayList<String> passwordsToTry = new ArrayList<>();
-            passwordsToTry.addAll(mangle(entry.fName));
-            passwordsToTry.addAll(mangle(entry.lName));
-            if(tryPasswords(entry.hashed, entry.salt, mangle(passwordsToTry))){
+            if(tryPasswords(entry.hashed, entry.salt, doubleMangle ? mangle(passwordsToTry) : passwordsToTry)){
                 cracked.add(entry);
             }
         }
@@ -56,7 +46,7 @@ public class PasswordCrack {
         notCracked.removeIf(entry -> tryPasswords(entry.hashed, entry.salt, dictionary));
     }
 
-    private static void checkDictionary(ArrayList<String> dictionary) {
+    private static void checkDictionary(ArrayList<String> dictionary, boolean doubleMangle) {
         int threadsCount = Runtime.getRuntime().availableProcessors();
         int passwordPerThread = dictionary.size() / threadsCount;
         Thread[] threads = new Thread[threadsCount];
@@ -70,36 +60,7 @@ public class PasswordCrack {
                     ArrayList<String> mangled = mangle(password);
                     for(int j = 0; j < notCracked.size(); j++){
                         PasswordEntry entry = notCracked.get(j);
-                        if(tryPasswords(entry.hashed, entry.salt, mangled)){
-                            notCracked.remove(j);
-                        }
-                    }
-                }
-            });
-        }
-        try {
-            for (Thread t : threads) {t.start();}
-            for (Thread t : threads) {t.join();}
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private static void checkDictionaryX2(ArrayList<String> dictionary) {
-        int threadsCount = Runtime.getRuntime().availableProcessors();
-        int passwordPerThread = dictionary.size() / threadsCount;
-        Thread[] threads = new Thread[threadsCount];
-        for(int i = 0; i < threadsCount; i++) {
-            int startIndex = i * passwordPerThread;
-            int endIndex = i < threadsCount - 1 ? (i+1) * passwordPerThread : dictionary.size();
-            threads[i] = new Thread(() -> {
-                List<String> dictSlice = dictionary.subList(startIndex, endIndex);
-                for(String password : dictSlice) {
-                    if(notCracked.size() == 0) {break;}
-                    ArrayList<String> mangled = mangle(mangle(password));
-                    for(int j = 0; j < notCracked.size(); j++){
-                        PasswordEntry entry = notCracked.get(j);
-                        if(tryPasswords(entry.hashed, entry.salt, mangled)){
+                        if(tryPasswords(entry.hashed, entry.salt, doubleMangle ? mangle(mangled) : mangled)){
                             notCracked.remove(j);
                         }
                     }
@@ -163,7 +124,7 @@ public class PasswordCrack {
     }
 
     static ArrayList<String> loadDictionary(String fileName) {
-        if(!(new File(fileName).isFile() && new File(fileName).canRead())){ throw new IllegalArgumentException();}
+        if(!(new File(fileName).isFile() && new File(fileName).canRead())){ throw new IllegalArgumentException("Dictionary needs to be readable!");}
         ArrayList<String> passwords = new ArrayList<>();
         InputStream input = PasswordCrack.class.getResourceAsStream(fileName);
         Scanner reader = new Scanner(input);
@@ -188,7 +149,7 @@ public class PasswordCrack {
         }
 
         static ArrayList<PasswordEntry> loadFromFile(String fileName) {
-            if(!(new File(fileName).isFile() && new File(fileName).canRead())){ throw new IllegalArgumentException();}
+            if(!(new File(fileName).isFile() && new File(fileName).canRead())){ throw new IllegalArgumentException("Password file needs to be readable!");}
             ArrayList<PasswordEntry> entries = new ArrayList<>();
             InputStream input = PasswordCrack.class.getResourceAsStream(fileName);
             Scanner reader = new Scanner(input);
@@ -201,13 +162,7 @@ public class PasswordCrack {
 
         @Override
         public boolean equals(Object obj) {
-            if(obj == null) {
-                return false;
-            } else if (!(obj instanceof PasswordEntry)) {
-                return false;
-            } else {
-                return this.hashed.equals(((PasswordEntry) obj).hashed);
-            }
+            return (obj instanceof PasswordEntry) && this.hashed.equals(((PasswordEntry) obj).hashed);
         }
     }
 }
