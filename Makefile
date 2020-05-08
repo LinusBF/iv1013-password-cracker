@@ -4,7 +4,7 @@
 CRACKERFILES=PasswordCrack.java passwd2-plain.txt
 
 # Add any additional files with java classes here
-CRACKEREXTRAS=
+CRACKEREXTRAS=most_common_pass.txt
 
 AUTHFILES=.kaka .base.xml
 
